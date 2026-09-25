@@ -1,0 +1,6 @@
+{
+  "name": "LocalAudit Pro - Lead Intelligence & Local SEO Auditor",
+  "description": "Piattaforma di Lead Intelligence e Local SEO Audit per agenzie web e consulenti digitali. Analisi automatica di profili Google Business, verifica performance web e classificazione opportunità di vendita ad alta conversione.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
