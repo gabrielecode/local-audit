@@ -6,6 +6,7 @@ import { GoogleGenAI, Type } from '@google/genai';
 import { auditSingleBusiness, auditBusinessBatch } from './src/utils/auditorEngine';
 import { RawBusinessInput, AuditResult } from './src/types/audit';
 import searchPlacesHandler from './api/search';
+import pagespeedHandler from './api/pagespeed';
 
 dotenv.config();
 
@@ -33,6 +34,11 @@ if (process.env.GEMINI_API_KEY) {
 // 0. Places API Search Endpoint (Vercel Serverless Function compatible)
 app.all('/api/search', (req: Request, res: Response) => {
   searchPlacesHandler(req, res);
+});
+
+// 0b. Google PageSpeed Insights Mobile Audit Endpoint (Vercel Serverless Function compatible)
+app.all('/api/pagespeed', (req: Request, res: Response) => {
+  pagespeedHandler(req, res);
 });
 
 // 1. Audit Endpoint (Deterministic Lead Intelligence Engine)

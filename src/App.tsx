@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { RawBusinessInput, AuditResult } from './types/audit';
-import { auditBusinessBatch, auditSingleBusiness } from './utils/auditorEngine';
+import { auditBusinessBatch, auditSingleBusiness, isSocialOrEmptyWebsite } from './utils/auditorEngine';
 import { SAMPLE_PRESETS, DatasetPreset } from './data/sampleDatasets';
 import { buildWhatsAppUrl, generateWhatsAppPitch, formatWhatsAppNumber } from './utils/whatsappHelper';
 import { Header } from './components/Header';
@@ -42,6 +42,14 @@ export default function App() {
   const [isSearchingPlaces, setIsSearchingPlaces] = useState(false);
   const searchSectionRef = useRef<HTMLDivElement>(null);
 
+  // PageSpeed live audit state
+  const [testingBusinessNames, setTestingBusinessNames] = useState<Set<string>>(new Set());
+  const [isBatchTestingSpeed, setIsBatchTestingSpeed] = useState(false);
+  const [batchProgress, setBatchProgress] = useState<{ current: number; total: number }>({
+    current: 0,
+    total: 0,
+  });
+
   // Modals state
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isSingleAuditOpen, setIsSingleAuditOpen] = useState(false);
@@ -70,10 +78,78 @@ export default function App() {
     category: string,
     city: string
   ) => {
-    const audited = auditBusinessBatch(results);
+    // Audit PageSpeed Efficace (senza rallentare la ricerca):
+    // Se l'attività NON ha un sito, assegna subito lo score 0 e il tag NO_WEBSITE
+    const preparedResults = results.map((item) => {
+      const hasNoWeb = !item.website || isSocialOrEmptyWebsite(item.website);
+      return {
+        ...item,
+        pagespeed_mobile_score: hasNoWeb ? 0 : (item.pagespeed_mobile_score ?? null),
+      };
+    });
+
+    const audited = auditBusinessBatch(preparedResults);
     setLeads(audited);
     setCurrentPresetName(`${category} a ${city} (Google Places Live)`);
     setActiveSegment('ALL');
+  };
+
+  const handleTestPageSpeed = async (lead: AuditResult) => {
+    const website = lead.raw.website;
+    if (!website || isSocialOrEmptyWebsite(website)) return;
+
+    setTestingBusinessNames((prev) => new Set(prev).add(lead.business_name));
+
+    try {
+      const res = await fetch(`/api/pagespeed?url=${encodeURIComponent(website)}`);
+      const data = await res.json();
+      const score = typeof data.score === 'number' ? data.score : 45;
+
+      const updatedRaw: RawBusinessInput = {
+        ...lead.raw,
+        pagespeed_mobile_score: score,
+      };
+
+      const reAudited = auditSingleBusiness(updatedRaw);
+
+      setLeads((prev) =>
+        prev.map((l) => (l.business_name === lead.business_name ? reAudited : l))
+      );
+
+      setSelectedLead((prev) =>
+        prev && prev.business_name === lead.business_name ? reAudited : prev
+      );
+    } catch (err) {
+      console.error('Failed to run PageSpeed audit:', err);
+    } finally {
+      setTestingBusinessNames((prev) => {
+        const next = new Set(prev);
+        next.delete(lead.business_name);
+        return next;
+      });
+    }
+  };
+
+  const handleBatchAuditPageSpeed = async () => {
+    const toTest = leads.filter(
+      (l) => l.raw.website && !isSocialOrEmptyWebsite(l.raw.website) && l.raw.pagespeed_mobile_score === null
+    );
+
+    if (toTest.length === 0) return;
+
+    setIsBatchTestingSpeed(true);
+    setBatchProgress({ current: 0, total: toTest.length });
+
+    for (let i = 0; i < toTest.length; i++) {
+      const currentLead = toTest[i];
+      await handleTestPageSpeed(currentLead);
+      setBatchProgress({ current: i + 1, total: toTest.length });
+      if (i < toTest.length - 1) {
+        await new Promise((r) => setTimeout(r, 600));
+      }
+    }
+
+    setIsBatchTestingSpeed(false);
   };
 
   const scrollToSearch = () => {
@@ -145,6 +221,7 @@ export default function App() {
       'Link WhatsApp (wa.me)',
       'Messaggio WhatsApp Calibrato',
       'Sito Web',
+      'PageSpeed Mobile',
       'Tag Opportunita',
       'Problemi Principali',
       'Servizi Suggeriti',
@@ -168,6 +245,7 @@ export default function App() {
         `"${waLink.replace(/"/g, '""')}"`,
         `"${waMsg.replace(/"/g, '""')}"`,
         `"${(l.raw.website || 'N/A').replace(/"/g, '""')}"`,
+        l.raw.pagespeed_mobile_score !== null ? l.raw.pagespeed_mobile_score : 'N/D',
         `"${l.tags.join(', ')}"`,
         `"${l.main_problems.join(' | ').replace(/"/g, '""')}"`,
         `"${l.suggested_services.join(' | ').replace(/"/g, '""')}"`,
@@ -267,7 +345,7 @@ export default function App() {
               <span className="font-mono text-amber-400/90 font-bold">ALTA PRIORITÀ</span>
             </div>
             <p className="text-slate-400 leading-normal">
-              Profilo GBP senza sito o solo social. Hook WhatsApp automatico: richiesta menù/catalogo e proposta sito vetrina diretto.
+              Profilo GBP senza sito o solo social (score 0). Hook WhatsApp: richiesta menù/catalogo e offerta sito vetrina diretto.
             </p>
           </div>
 
@@ -277,7 +355,7 @@ export default function App() {
               <span className="font-mono text-orange-400/90 font-bold">ALTA / MEDIA</span>
             </div>
             <p className="text-slate-400 leading-normal">
-              PageSpeed Mobile &lt; 50 o no SSL. Hook WhatsApp automatico: report gratuito con 3 correzioni tecniche per smartphone.
+              PageSpeed Mobile &lt; 50 o no SSL. Hook WhatsApp: report gratuito con 3 correzioni tecniche per smartphone.
             </p>
           </div>
 
@@ -287,7 +365,7 @@ export default function App() {
               <span className="font-mono text-indigo-400/90 font-bold">VALORE CONTINUATIVO</span>
             </div>
             <p className="text-slate-400 leading-normal">
-              &lt; 15 recensioni, rating &lt; 4.0 o non verificato. Hook WhatsApp automatico: guida gratuita crescita recensioni a costo zero.
+              &lt; 15 recensioni, rating &lt; 4.0 o non verificato. Hook WhatsApp: guida gratuita crescita recensioni a costo zero.
             </p>
           </div>
         </div>
@@ -299,7 +377,7 @@ export default function App() {
           activeFilter={activeSegment}
         />
 
-        {/* Leads Table */}
+        {/* Leads Table with PageSpeed Audit Integration */}
         <LeadTable
           leads={leads}
           onSelectLead={(lead) => setSelectedLead(lead)}
@@ -307,6 +385,11 @@ export default function App() {
           activeSegment={activeSegment}
           onChangeSegment={setActiveSegment}
           senderName={senderName}
+          onTestSpeed={handleTestPageSpeed}
+          onBatchTestSpeed={handleBatchAuditPageSpeed}
+          testingBusinessNames={testingBusinessNames}
+          isBatchTestingSpeed={isBatchTestingSpeed}
+          batchProgress={batchProgress}
         />
       </main>
 
@@ -346,6 +429,8 @@ export default function App() {
         onEditLead={(lead) => setEditingLead(lead)}
         senderName={senderName}
         onUpdateSenderName={handleUpdateSenderName}
+        onTestSpeed={handleTestPageSpeed}
+        isTestingSpeed={Boolean(selectedLead && testingBusinessNames.has(selectedLead.business_name))}
       />
 
       <LeadEditModal

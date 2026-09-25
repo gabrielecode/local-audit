@@ -70,15 +70,17 @@ export const PlacesSearchBar: React.FC<PlacesSearchBarProps> = ({
         throw new Error(data.error || `Errore del server (${res.status})`);
       }
 
-      if (Array.isArray(data)) {
-        if (data.length === 0) {
-          setErrorMessage(`Nessuna attività trovata per "${trimmedCat}" a "${trimmedCity}". Prova con un'altra combinazione.`);
-        } else {
-          setSuccessInfo(`Trovate ${data.length} attività per "${trimmedCat}" a ${trimmedCity}! Analisi completata.`);
-          onSearchSuccess(data, trimmedCat, trimmedCity);
-        }
+      const placesList: RawBusinessInput[] = Array.isArray(data)
+        ? data
+        : Array.isArray(data.results)
+        ? data.results
+        : [];
+
+      if (placesList.length === 0) {
+        setErrorMessage(`Nessuna attività trovata per "${trimmedCat}" a "${trimmedCity}". Prova con un'altra categoria o città.`);
       } else {
-        throw new Error('Formato risposta non valido dal server.');
+        setSuccessInfo(`Trovate ${placesList.length} attività per "${trimmedCat}" a ${trimmedCity}! Analisi completata.`);
+        onSearchSuccess(placesList, trimmedCat, trimmedCity);
       }
     } catch (err: any) {
       console.error('Search error:', err);
@@ -187,12 +189,12 @@ export const PlacesSearchBar: React.FC<PlacesSearchBarProps> = ({
               {isLoading ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin text-white" />
-                  <span>Ricerca in corso...</span>
+                  <span>Scansione Zona...</span>
                 </>
               ) : (
                 <>
                   <Search className="w-4 h-4" />
-                  <span>Cerca Lead</span>
+                  <span>Scansiona Zona</span>
                 </>
               )}
             </button>

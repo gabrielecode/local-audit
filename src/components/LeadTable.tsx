@@ -15,7 +15,11 @@ import {
   ShieldAlert,
   ArrowUpDown,
   MessageCircle,
-  Edit3
+  Edit3,
+  Gauge,
+  Loader2,
+  RotateCw,
+  Zap
 } from 'lucide-react';
 import { buildWhatsAppUrl, generateWhatsAppPitch, formatWhatsAppNumber } from '../utils/whatsappHelper';
 
@@ -26,6 +30,11 @@ interface LeadTableProps {
   activeSegment: string;
   onChangeSegment: (segment: string) => void;
   senderName?: string;
+  onTestSpeed?: (lead: AuditResult) => Promise<void>;
+  onBatchTestSpeed?: () => void;
+  testingBusinessNames?: Set<string>;
+  isBatchTestingSpeed?: boolean;
+  batchProgress?: { current: number; total: number };
 }
 
 export const LeadTable: React.FC<LeadTableProps> = ({
@@ -35,6 +44,11 @@ export const LeadTable: React.FC<LeadTableProps> = ({
   activeSegment,
   onChangeSegment,
   senderName = 'il team di LocalAudit',
+  onTestSpeed,
+  onBatchTestSpeed,
+  testingBusinessNames = new Set(),
+  isBatchTestingSpeed = false,
+  batchProgress,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
@@ -114,25 +128,15 @@ export const LeadTable: React.FC<LeadTableProps> = ({
     }
   };
 
-  const getTagDescription = (tag: OpportunityTag) => {
-    switch (tag) {
-      case 'NO_WEBSITE':
-        return 'Nessun Sito Web';
-      case 'WEBSITE_CRITICAL':
-        return 'Sito Lento / No SSL';
-      case 'GBP_UNCLAIMED':
-        return 'Non Rivendicato';
-      case 'GBP_LOW_REVIEWS':
-        return '< 15 Recensioni';
-      case 'GBP_POOR_RATING':
-        return 'Rating < 4.0';
-    }
-  };
+  // Untested websites count
+  const untestedWebsitesCount = leads.filter(
+    (l) => l.raw.website && !l.tags.includes('NO_WEBSITE') && l.raw.pagespeed_mobile_score === null
+  ).length;
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+    <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-lg">
       {/* Search and Segment Toolbar */}
-      <div className="p-4 border-b border-slate-800 flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
+      <div className="p-4 border-b border-slate-800 flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between bg-slate-950/40">
         {/* Segmented Filter Control */}
         <div className="flex items-center gap-1 p-1 bg-slate-950 rounded-lg overflow-x-auto">
           {[
@@ -156,13 +160,37 @@ export const LeadTable: React.FC<LeadTableProps> = ({
           ))}
         </div>
 
-        {/* Search input & Sort controls */}
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1 md:w-64">
+        {/* Action Controls & Search input */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Batch PageSpeed Test Button */}
+          {onBatchTestSpeed && untestedWebsitesCount > 0 && (
+            <button
+              onClick={onBatchTestSpeed}
+              disabled={isBatchTestingSpeed}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-lg transition-colors disabled:opacity-50"
+              title="Testa automaticamente tutti i siti non ancora misurati con Google PageSpeed Insights"
+            >
+              {isBatchTestingSpeed ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400" />
+                  <span>
+                    Audit PageSpeed ({batchProgress?.current || 0}/{batchProgress?.total || untestedWebsitesCount})
+                  </span>
+                </>
+              ) : (
+                <>
+                  <Gauge className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Testa Tutti i Siti ({untestedWebsitesCount})</span>
+                </>
+              )}
+            </button>
+          )}
+
+          <div className="relative flex-1 md:w-60">
             <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="Cerca attività, categoria, città..."
+              placeholder="Cerca attività, città..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-950 border border-slate-800 rounded-lg text-slate-200 placeholder-slate-500 focus:outline-hidden focus:border-indigo-500"
@@ -186,6 +214,27 @@ export const LeadTable: React.FC<LeadTableProps> = ({
         </div>
       </div>
 
+      {/* Batch progress banner if running */}
+      {isBatchTestingSpeed && batchProgress && (
+        <div className="px-4 py-2 bg-indigo-950/40 border-b border-indigo-500/30 flex items-center justify-between text-xs text-indigo-200">
+          <div className="flex items-center gap-2">
+            <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-400" />
+            <span>
+              Google PageSpeed Insights in corso: <strong>{batchProgress.current}</strong> di{' '}
+              <strong>{batchProgress.total}</strong> siti analizzati...
+            </span>
+          </div>
+          <div className="w-32 bg-slate-800 rounded-full h-2 overflow-hidden">
+            <div
+              className="bg-indigo-500 h-full transition-all duration-300"
+              style={{
+                width: `${Math.round((batchProgress.current / (batchProgress.total || 1)) * 100)}%`,
+              }}
+            />
+          </div>
+        </div>
+      )}
+
       {/* Table Content */}
       <div className="overflow-x-auto">
         <table className="w-full text-left text-xs">
@@ -193,7 +242,7 @@ export const LeadTable: React.FC<LeadTableProps> = ({
             <tr className="border-b border-slate-800 bg-slate-950/60 text-slate-400 font-medium">
               <th className="py-3 px-4">Attività & Dettagli</th>
               <th className="py-3 px-4">Priorità & Score</th>
-              <th className="py-3 px-4">Presenza Web</th>
+              <th className="py-3 px-4">Presenza Web & PageSpeed</th>
               <th className="py-3 px-4">Profilo Google (GBP)</th>
               <th className="py-3 px-4">Hook Commerciale</th>
               <th className="py-3 px-4 text-right">Azione</th>
@@ -211,6 +260,8 @@ export const LeadTable: React.FC<LeadTableProps> = ({
                 const isNoWeb = lead.tags.includes('NO_WEBSITE');
                 const isCriticalWeb = lead.tags.includes('WEBSITE_CRITICAL');
                 const isUnclaimed = lead.tags.includes('GBP_UNCLAIMED');
+                const isTestingThisLead = testingBusinessNames.has(lead.business_name);
+                const hasScore = lead.raw.pagespeed_mobile_score !== null;
 
                 return (
                   <tr
@@ -260,34 +311,94 @@ export const LeadTable: React.FC<LeadTableProps> = ({
                       </div>
                     </td>
 
-                    {/* Presenza Web */}
+                    {/* Presenza Web & PageSpeed Mobile */}
                     <td className="py-3 px-4">
                       {isNoWeb ? (
-                        <div className="text-amber-400 font-medium flex items-center gap-1">
-                          <Globe className="w-3.5 h-3.5 text-amber-400" />
-                          <span>Nessun Sito Web</span>
-                        </div>
-                      ) : isCriticalWeb ? (
                         <div>
-                          <div className="text-orange-400 font-medium flex items-center gap-1">
-                            <AlertTriangle className="w-3.5 h-3.5 text-orange-400" />
-                            <span>Critico</span>
+                          <div className="text-amber-400 font-medium flex items-center gap-1">
+                            <Globe className="w-3.5 h-3.5 text-amber-400" />
+                            <span>Nessun Sito Web</span>
                           </div>
-                          <div className="text-slate-500 text-xs mt-0.5">
-                            {lead.raw.pagespeed_mobile_score !== null && (
-                              <span className="font-mono tabular-nums">
-                                Mobile: {lead.raw.pagespeed_mobile_score}/100
-                              </span>
-                            )}
-                            {lead.raw.ssl_active === false && (
-                              <span className="ml-1 text-rose-400 font-mono">· No SSL</span>
-                            )}
-                          </div>
+                          <span className="text-[11px] text-amber-400/80 font-mono">
+                            Score: 0 · NO_WEBSITE
+                          </span>
                         </div>
                       ) : (
-                        <div className="text-emerald-400 flex items-center gap-1 font-medium">
-                          <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                          <span>Online Ottimizzato</span>
+                        <div className="space-y-1">
+                          {/* Website Link and SSL */}
+                          <div className="flex items-center gap-1.5">
+                            <a
+                              href={lead.raw.website!}
+                              target="_blank"
+                              rel="noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="text-xs text-indigo-400 hover:underline truncate max-w-[150px] inline-flex items-center gap-1"
+                              title={lead.raw.website!}
+                            >
+                              <span className="truncate">
+                                {lead.raw.website!.replace(/^https?:\/\/(www\.)?/, '')}
+                              </span>
+                              <ExternalLink className="w-2.5 h-2.5 shrink-0 opacity-70" />
+                            </a>
+                            {lead.raw.ssl_active === false && (
+                              <span className="text-[10px] text-rose-400 bg-rose-950/60 px-1 rounded font-mono">
+                                No SSL
+                              </span>
+                            )}
+                          </div>
+
+                          {/* PageSpeed Status or Test Button */}
+                          {isTestingThisLead ? (
+                            <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] bg-indigo-950/80 text-indigo-300 border border-indigo-500/30">
+                              <Loader2 className="w-3 h-3 animate-spin text-indigo-400" />
+                              <span>Audit Mobile...</span>
+                            </div>
+                          ) : hasScore ? (
+                            <div className="flex items-center gap-1.5">
+                              <span
+                                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-mono font-semibold ${
+                                  lead.raw.pagespeed_mobile_score! < 50
+                                    ? 'bg-rose-950/80 text-rose-300 border border-rose-800/80'
+                                    : lead.raw.pagespeed_mobile_score! < 90
+                                    ? 'bg-amber-950/80 text-amber-300 border border-amber-800/80'
+                                    : 'bg-emerald-950/80 text-emerald-300 border border-emerald-800/80'
+                                }`}
+                              >
+                                <Gauge className="w-3 h-3" />
+                                <span>Mobile: {lead.raw.pagespeed_mobile_score}/100</span>
+                                {lead.raw.pagespeed_mobile_score! < 50 && <span>(Lento)</span>}
+                              </span>
+
+                              {onTestSpeed && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onTestSpeed(lead);
+                                  }}
+                                  className="p-1 text-slate-500 hover:text-slate-300 rounded hover:bg-slate-800 transition-colors"
+                                  title="Rifai audit PageSpeed"
+                                >
+                                  <RotateCw className="w-3 h-3" />
+                                </button>
+                              )}
+                            </div>
+                          ) : (
+                            onTestSpeed && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onTestSpeed(lead);
+                                }}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 hover:text-indigo-200 border border-indigo-500/30 transition-colors cursor-pointer"
+                                title="Misura il punteggio Mobile reale tramite Google PageSpeed Insights"
+                              >
+                                <Zap className="w-3 h-3 text-amber-400" />
+                                <span>Testa Velocità</span>
+                              </button>
+                            )
+                          )}
                         </div>
                       )}
                     </td>
@@ -392,7 +503,7 @@ export const LeadTable: React.FC<LeadTableProps> = ({
           <span className="font-mono tabular-nums text-slate-300 font-medium">{leads.length}</span> totali
         </div>
         <div className="flex items-center gap-3">
-          <span>Clicca su una riga per aprire il Dossier completo, generare script o copiare il JSON.</span>
+          <span>Clicca su "Testa Velocità" o su una riga per aprire il Dossier completo e testare Google PageSpeed.</span>
         </div>
       </div>
     </div>

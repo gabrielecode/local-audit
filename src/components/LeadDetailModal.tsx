@@ -21,7 +21,10 @@ import {
   MessageCircle,
   Send,
   UserCheck,
-  Edit3
+  Edit3,
+  Gauge,
+  Loader2,
+  Zap
 } from 'lucide-react';
 import { 
   formatWhatsAppNumber, 
@@ -36,6 +39,8 @@ interface LeadDetailModalProps {
   onEditLead?: (lead: AuditResult) => void;
   senderName?: string;
   onUpdateSenderName?: (name: string) => void;
+  onTestSpeed?: (lead: AuditResult) => Promise<void>;
+  isTestingSpeed?: boolean;
 }
 
 export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
@@ -45,6 +50,8 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
   onEditLead,
   senderName = 'Gabriele',
   onUpdateSenderName,
+  onTestSpeed,
+  isTestingSpeed = false,
 }) => {
   const [activeTab, setActiveTab] = useState<'dossier' | 'whatsapp' | 'ai-kit' | 'json'>('dossier');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
@@ -392,11 +399,54 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
                   </div>
 
                   <div>
-                    <span className="text-slate-500 block mb-0.5">PageSpeed Mobile</span>
+                    <div className="flex items-center justify-between mb-0.5">
+                      <span className="text-slate-500">PageSpeed Mobile</span>
+                      {onTestSpeed && lead.raw.website && !lead.tags.includes('NO_WEBSITE') && (
+                        <button
+                          type="button"
+                          onClick={() => onTestSpeed(lead)}
+                          disabled={isTestingSpeed}
+                          className="text-[10px] text-amber-400 hover:text-amber-300 hover:underline flex items-center gap-0.5 disabled:opacity-50"
+                          title="Esegui audit su Google PageSpeed Insights"
+                        >
+                          {isTestingSpeed ? (
+                            <>
+                              <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                              <span>Audit...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Zap className="w-2.5 h-2.5" />
+                              <span>{lead.raw.pagespeed_mobile_score !== null ? 'Rifai' : 'Testa'}</span>
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
                     <span className="font-mono font-medium tabular-nums text-slate-200">
-                      {lead.raw.pagespeed_mobile_score !== null
-                        ? `${lead.raw.pagespeed_mobile_score}/100`
-                        : 'Non rilevabile'}
+                      {isTestingSpeed ? (
+                        <span className="text-indigo-400 text-xs flex items-center gap-1">
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          <span>Misurazione...</span>
+                        </span>
+                      ) : typeof lead.raw.pagespeed_mobile_score === 'number' ? (
+                        <span
+                          className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs ${
+                            lead.raw.pagespeed_mobile_score < 50
+                              ? 'bg-rose-950/80 text-rose-300 border border-rose-800/80 font-bold'
+                              : lead.raw.pagespeed_mobile_score < 90
+                              ? 'bg-amber-950/80 text-amber-300 border border-amber-800/80 font-semibold'
+                              : 'bg-emerald-950/80 text-emerald-300 border border-emerald-800/80 font-semibold'
+                          }`}
+                        >
+                          {lead.raw.pagespeed_mobile_score}/100
+                          {lead.raw.pagespeed_mobile_score < 50 && ' (Lento)'}
+                        </span>
+                      ) : lead.tags.includes('NO_WEBSITE') ? (
+                        <span className="text-amber-400 text-xs">0/100 (No Sito)</span>
+                      ) : (
+                        <span className="text-slate-400 text-xs italic">Da analizzare</span>
+                      )}
                     </span>
                   </div>
 
