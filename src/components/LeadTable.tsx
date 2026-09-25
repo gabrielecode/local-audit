@@ -13,21 +13,28 @@ import {
   Star,
   ShieldCheck,
   ShieldAlert,
-  ArrowUpDown
+  ArrowUpDown,
+  MessageCircle,
+  Edit3
 } from 'lucide-react';
+import { buildWhatsAppUrl, generateWhatsAppPitch, formatWhatsAppNumber } from '../utils/whatsappHelper';
 
 interface LeadTableProps {
   leads: AuditResult[];
   onSelectLead: (lead: AuditResult) => void;
+  onEditLead?: (lead: AuditResult) => void;
   activeSegment: string;
   onChangeSegment: (segment: string) => void;
+  senderName?: string;
 }
 
 export const LeadTable: React.FC<LeadTableProps> = ({
   leads,
   onSelectLead,
+  onEditLead,
   activeSegment,
   onChangeSegment,
+  senderName = 'il team di LocalAudit',
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
@@ -318,6 +325,24 @@ export const LeadTable: React.FC<LeadTableProps> = ({
                     {/* Azione Rapida */}
                     <td className="py-3 px-4 text-right">
                       <div className="flex items-center justify-end gap-1.5">
+                        {/* WhatsApp Direct wa.me Link Button */}
+                        {lead.raw.phone && formatWhatsAppNumber(lead.raw.phone) && (
+                          <a
+                            href={buildWhatsAppUrl(
+                              lead.raw.phone,
+                              generateWhatsAppPitch(lead, senderName)
+                            )!}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="p-1.5 rounded-md hover:bg-emerald-950/80 text-emerald-400 hover:text-emerald-300 border border-emerald-900/60 bg-emerald-950/30 transition-colors flex items-center gap-1"
+                            title={`Invia messaggio WhatsApp personalizzato (${formatWhatsAppNumber(lead.raw.phone)})`}
+                          >
+                            <MessageCircle className="w-3.5 h-3.5" />
+                            <span className="text-[11px] font-medium hidden sm:inline">WhatsApp</span>
+                          </a>
+                        )}
+
                         <button
                           onClick={(e) => handleCopyHook(e, lead.sales_pitch_hook, index)}
                           className="p-1.5 rounded-md hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors"
@@ -329,6 +354,19 @@ export const LeadTable: React.FC<LeadTableProps> = ({
                             <Copy className="w-3.5 h-3.5" />
                           )}
                         </button>
+
+                        {onEditLead && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onEditLead(lead);
+                            }}
+                            className="p-1.5 rounded-md hover:bg-slate-800 text-slate-400 hover:text-indigo-300 transition-colors"
+                            title="Modifica / Correggi URL o dati"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
 
                         <button
                           onClick={() => onSelectLead(lead)}

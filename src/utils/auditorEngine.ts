@@ -12,10 +12,35 @@ const SOCIAL_DOMAINS = [
   'api.whatsapp.com',
 ];
 
+export function normalizeWebsiteUrl(url?: string | null): string | null {
+  if (!url || typeof url !== 'string') return null;
+  const clean = url.trim();
+  if (
+    !clean ||
+    clean.toLowerCase() === 'null' ||
+    clean.toLowerCase() === 'undefined' ||
+    clean.toLowerCase() === 'none' ||
+    clean.toLowerCase() === 'n/a' ||
+    clean.toLowerCase() === 'assente'
+  ) {
+    return null;
+  }
+  if (!/^https?:\/\//i.test(clean)) {
+    return `https://${clean}`;
+  }
+  return clean;
+}
+
 export function isSocialOrEmptyWebsite(url?: string | null): boolean {
   if (!url || typeof url !== 'string' || url.trim() === '') return true;
   const cleanUrl = url.trim().toLowerCase();
-  if (cleanUrl === 'null' || cleanUrl === 'undefined' || cleanUrl === 'none' || cleanUrl === 'n/a') {
+  if (
+    cleanUrl === 'null' ||
+    cleanUrl === 'undefined' ||
+    cleanUrl === 'none' ||
+    cleanUrl === 'n/a' ||
+    cleanUrl === 'assente'
+  ) {
     return true;
   }
   return SOCIAL_DOMAINS.some((domain) => cleanUrl.includes(domain));
@@ -29,7 +54,7 @@ export function auditSingleBusiness(input: RawBusinessInput): AuditResult {
   const businessName = (input.business_name || 'Attività Locale').trim();
   const category = (input.category || 'Attività locale').trim();
   const city = (input.city || 'zona').trim();
-  const rawWebsite = input.website?.trim() || null;
+  const rawWebsite = normalizeWebsiteUrl(input.website) || input.website?.trim() || null;
   const reviewsCount = typeof input.reviews_count === 'number' ? input.reviews_count : 0;
   const rating = typeof input.google_rating === 'number' ? input.google_rating : 0;
   const pagespeed = typeof input.pagespeed_mobile_score === 'number' ? input.pagespeed_mobile_score : null;

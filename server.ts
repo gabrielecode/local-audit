@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import { GoogleGenAI, Type } from '@google/genai';
 import { auditSingleBusiness, auditBusinessBatch } from './src/utils/auditorEngine';
 import { RawBusinessInput, AuditResult } from './src/types/audit';
+import searchPlacesHandler from './api/search';
 
 dotenv.config();
 
@@ -28,6 +29,11 @@ if (process.env.GEMINI_API_KEY) {
     },
   });
 }
+
+// 0. Places API Search Endpoint (Vercel Serverless Function compatible)
+app.all('/api/search', (req: Request, res: Response) => {
+  searchPlacesHandler(req, res);
+});
 
 // 1. Audit Endpoint (Deterministic Lead Intelligence Engine)
 app.post('/api/audit', (req: Request, res: Response) => {

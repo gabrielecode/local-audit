@@ -3,10 +3,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { RawBusinessInput, AuditResult } from './types/audit';
 import { auditBusinessBatch, auditSingleBusiness } from './utils/auditorEngine';
 import { SAMPLE_PRESETS, DatasetPreset } from './data/sampleDatasets';
+import { buildWhatsAppUrl, generateWhatsAppPitch, formatWhatsAppNumber } from './utils/whatsappHelper';
 import { Header } from './components/Header';
 import { MetricsOverview } from './components/MetricsOverview';
 import { LeadTable } from './components/LeadTable';
@@ -14,6 +15,8 @@ import { LeadDetailModal } from './components/LeadDetailModal';
 import { JsonImportModal } from './components/JsonImportModal';
 import { SingleAuditModal } from './components/SingleAuditModal';
 import { RuleCriteriaModal } from './components/RuleCriteriaModal';
+import { LeadEditModal } from './components/LeadEditModal';
+import { PlacesSearchBar } from './components/PlacesSearchBar';
 import { 
   Building2, 
   Sparkles, 
@@ -22,14 +25,22 @@ import {
   FileSpreadsheet, 
   Download, 
   Filter, 
-  RefreshCw 
+  RefreshCw,
+  MessageCircle,
+  UserCheck
 } from 'lucide-react';
 
 export default function App() {
   const [leads, setLeads] = useState<AuditResult[]>([]);
   const [selectedLead, setSelectedLead] = useState<AuditResult | null>(null);
+  const [editingLead, setEditingLead] = useState<AuditResult | null>(null);
   const [activeSegment, setActiveSegment] = useState<string>('ALL');
   const [currentPresetName, setCurrentPresetName] = useState<string>(SAMPLE_PRESETS[0].name);
+  const [senderName, setSenderName] = useState<string>(
+    () => localStorage.getItem('localaudit_sender_name') || 'Gabriele'
+  );
+  const [isSearchingPlaces, setIsSearchingPlaces] = useState(false);
+  const searchSectionRef = useRef<HTMLDivElement>(null);
 
   // Modals state
   const [isImportOpen, setIsImportOpen] = useState(false);
@@ -42,11 +53,31 @@ export default function App() {
     setLeads(initialLeads);
   }, []);
 
+  const handleUpdateSenderName = (name: string) => {
+    setSenderName(name);
+    localStorage.setItem('localaudit_sender_name', name);
+  };
+
   const handleLoadPreset = (preset: DatasetPreset) => {
     const audited = auditBusinessBatch(preset.items);
     setLeads(audited);
     setCurrentPresetName(preset.name);
     setActiveSegment('ALL');
+  };
+
+  const handlePlacesSearchResults = (
+    results: RawBusinessInput[],
+    category: string,
+    city: string
+  ) => {
+    const audited = auditBusinessBatch(results);
+    setLeads(audited);
+    setCurrentPresetName(`${category} a ${city} (Google Places Live)`);
+    setActiveSegment('ALL');
+  };
+
+  const scrollToSearch = () => {
+    searchSectionRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
   const handleImportJson = (businesses: RawBusinessInput[]) => {
@@ -60,6 +91,17 @@ export default function App() {
     const singleResult = auditSingleBusiness(business);
     setLeads((prev) => [singleResult, ...prev]);
     setSelectedLead(singleResult);
+  };
+
+  const handleSaveEditedLead = (updatedRaw: RawBusinessInput) => {
+    const reAudited = auditSingleBusiness(updatedRaw);
+    setLeads((prev) =>
+      prev.map((l) => (l.business_name === editingLead?.business_name ? reAudited : l))
+    );
+    if (selectedLead && editingLead && selectedLead.business_name === editingLead.business_name) {
+      setSelectedLead(reAudited);
+    }
+    setEditingLead(null);
   };
 
   const handleUpdateStatus = (businessName: string, status: AuditResult['pipeline_status']) => {
@@ -90,7 +132,7 @@ export default function App() {
     URL.revokeObjectURL(url);
   };
 
-  // Export CSV for Excel / Google Sheets
+  // Export CSV for Excel / Google Sheets with WhatsApp wa.me links
   const handleExportCsv = () => {
     const headers = [
       'Nome Attivita',
@@ -99,6 +141,9 @@ export default function App() {
       'Categoria',
       'Citta',
       'Telefono',
+      'Telefono wa.me Pulito',
+      'Link WhatsApp (wa.me)',
+      'Messaggio WhatsApp Calibrato',
       'Sito Web',
       'Tag Opportunita',
       'Problemi Principali',
@@ -107,20 +152,29 @@ export default function App() {
       'Stato Pipeline',
     ];
 
-    const rows = leads.map((l) => [
-      `"${l.business_name.replace(/"/g, '""')}"`,
-      `"${l.lead_priority}"`,
-      l.lead_score,
-      `"${(l.raw.category || '').replace(/"/g, '""')}"`,
-      `"${(l.raw.city || '').replace(/"/g, '""')}"`,
-      `"${(l.raw.phone || '').replace(/"/g, '""')}"`,
-      `"${(l.raw.website || 'N/A').replace(/"/g, '""')}"`,
-      `"${l.tags.join(', ')}"`,
-      `"${l.main_problems.join(' | ').replace(/"/g, '""')}"`,
-      `"${l.suggested_services.join(' | ').replace(/"/g, '""')}"`,
-      `"${l.sales_pitch_hook.replace(/"/g, '""')}"`,
-      `"${l.pipeline_status || 'NUOVO'}"`,
-    ]);
+    const rows = leads.map((l) => {
+      const cleanPhone = formatWhatsAppNumber(l.raw.phone) || '';
+      const waMsg = generateWhatsAppPitch(l, senderName);
+      const waLink = cleanPhone ? buildWhatsAppUrl(cleanPhone, waMsg) || '' : '';
+
+      return [
+        `"${l.business_name.replace(/"/g, '""')}"`,
+        `"${l.lead_priority}"`,
+        l.lead_score,
+        `"${(l.raw.category || '').replace(/"/g, '""')}"`,
+        `"${(l.raw.city || '').replace(/"/g, '""')}"`,
+        `"${(l.raw.phone || '').replace(/"/g, '""')}"`,
+        `"${cleanPhone}"`,
+        `"${waLink.replace(/"/g, '""')}"`,
+        `"${waMsg.replace(/"/g, '""')}"`,
+        `"${(l.raw.website || 'N/A').replace(/"/g, '""')}"`,
+        `"${l.tags.join(', ')}"`,
+        `"${l.main_problems.join(' | ').replace(/"/g, '""')}"`,
+        `"${l.suggested_services.join(' | ').replace(/"/g, '""')}"`,
+        `"${l.sales_pitch_hook.replace(/"/g, '""')}"`,
+        `"${l.pipeline_status || 'NUOVO'}"`,
+      ];
+    });
 
     const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -143,10 +197,21 @@ export default function App() {
         onExportCsv={handleExportCsv}
         onLoadPreset={handleLoadPreset}
         leadsCount={leads.length}
+        onFocusSearch={scrollToSearch}
       />
 
       {/* Main Workspace */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+        {/* Google Places Live Search Bar (Vercel Serverless Function) */}
+        <div ref={searchSectionRef}>
+          <PlacesSearchBar
+            onSearchSuccess={handlePlacesSearchResults}
+            isLoading={isSearchingPlaces}
+            setIsLoading={setIsSearchingPlaces}
+            onFallbackLoadSample={() => handleLoadPreset(SAMPLE_PRESETS[0])}
+          />
+        </div>
+
         {/* Context Title & Opportunity Segment Guide */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-2 border-b border-slate-800/80">
           <div>
@@ -157,18 +222,32 @@ export default function App() {
               <span aria-hidden="true">·</span>
               <span>{leads.length} Attività Inviate</span>
             </div>
-            <h1 className="text-2xl font-bold tracking-tight text-white">
-              Classificazione Commerciale Attività Locali
+            <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-3">
+              <span>Classificazione Commerciale Attività Locali</span>
             </h1>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Quick Sender Config */}
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-xs">
+              <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="text-slate-400">Firma WhatsApp:</span>
+              <input
+                type="text"
+                value={senderName}
+                onChange={(e) => handleUpdateSenderName(e.target.value)}
+                placeholder="Tuo Nome"
+                className="w-24 bg-transparent text-emerald-300 font-medium focus:outline-hidden border-b border-slate-700 focus:border-emerald-400 text-xs px-1"
+                title="Modifica il tuo nome per la firma dei messaggi WhatsApp"
+              />
+            </div>
+
             <button
               onClick={handleExportCsv}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 transition-colors"
             >
               <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Esporta CSV (CRM)</span>
+              <span>Esporta CSV (wa.me link inclusi)</span>
             </button>
             <button
               onClick={handleExportJson}
@@ -188,7 +267,7 @@ export default function App() {
               <span className="font-mono text-amber-400/90 font-bold">ALTA PRIORITÀ</span>
             </div>
             <p className="text-slate-400 leading-normal">
-              Attività con profilo GBP senza sito web o con link social. Offerta: sito vetrina mobile-first ad alte prestazioni.
+              Profilo GBP senza sito o solo social. Hook WhatsApp automatico: richiesta menù/catalogo e proposta sito vetrina diretto.
             </p>
           </div>
 
@@ -198,7 +277,7 @@ export default function App() {
               <span className="font-mono text-orange-400/90 font-bold">ALTA / MEDIA</span>
             </div>
             <p className="text-slate-400 leading-normal">
-              Sito esistente con PageSpeed Mobile &lt; 50 o assenza di certificato SSL/HTTPS. Offerta: rifacimento o velocizzazione.
+              PageSpeed Mobile &lt; 50 o no SSL. Hook WhatsApp automatico: report gratuito con 3 correzioni tecniche per smartphone.
             </p>
           </div>
 
@@ -208,7 +287,7 @@ export default function App() {
               <span className="font-mono text-indigo-400/90 font-bold">VALORE CONTINUATIVO</span>
             </div>
             <p className="text-slate-400 leading-normal">
-              &lt; 15 recensioni, rating &lt; 4.0 o scheda non verificata. Offerta: reputazione, recensioni automatiche e Local Pack SEO.
+              &lt; 15 recensioni, rating &lt; 4.0 o non verificato. Hook WhatsApp automatico: guida gratuita crescita recensioni a costo zero.
             </p>
           </div>
         </div>
@@ -224,8 +303,10 @@ export default function App() {
         <LeadTable
           leads={leads}
           onSelectLead={(lead) => setSelectedLead(lead)}
+          onEditLead={(lead) => setEditingLead(lead)}
           activeSegment={activeSegment}
           onChangeSegment={setActiveSegment}
+          senderName={senderName}
         />
       </main>
 
@@ -236,6 +317,8 @@ export default function App() {
             <span>LocalAudit Pro</span>
             <span className="mx-2">·</span>
             <span>Lead Intelligence & Local SEO Auditor Engine</span>
+            <span className="mx-2">·</span>
+            <span className="text-emerald-400">Modulo wa.me Outreach Integrato</span>
           </div>
           <div className="flex items-center gap-4">
             <button
@@ -260,6 +343,16 @@ export default function App() {
         lead={selectedLead}
         onClose={() => setSelectedLead(null)}
         onUpdateStatus={handleUpdateStatus}
+        onEditLead={(lead) => setEditingLead(lead)}
+        senderName={senderName}
+        onUpdateSenderName={handleUpdateSenderName}
+      />
+
+      <LeadEditModal
+        isOpen={Boolean(editingLead)}
+        lead={editingLead}
+        onClose={() => setEditingLead(null)}
+        onSave={handleSaveEditedLead}
       />
 
       <JsonImportModal

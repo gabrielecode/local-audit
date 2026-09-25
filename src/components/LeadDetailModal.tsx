@@ -17,21 +17,36 @@ import {
   Mail, 
   ShieldAlert, 
   Clock, 
-  Globe 
+  Globe,
+  MessageCircle,
+  Send,
+  UserCheck,
+  Edit3
 } from 'lucide-react';
+import { 
+  formatWhatsAppNumber, 
+  generateWhatsAppPitch, 
+  buildWhatsAppUrl 
+} from '../utils/whatsappHelper';
 
 interface LeadDetailModalProps {
   lead: AuditResult | null;
   onClose: () => void;
   onUpdateStatus?: (businessName: string, status: AuditResult['pipeline_status']) => void;
+  onEditLead?: (lead: AuditResult) => void;
+  senderName?: string;
+  onUpdateSenderName?: (name: string) => void;
 }
 
 export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
   lead,
   onClose,
   onUpdateStatus,
+  onEditLead,
+  senderName = 'Gabriele',
+  onUpdateSenderName,
 }) => {
-  const [activeTab, setActiveTab] = useState<'dossier' | 'ai-kit' | 'json'>('dossier');
+  const [activeTab, setActiveTab] = useState<'dossier' | 'whatsapp' | 'ai-kit' | 'json'>('dossier');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [isGeneratingAi, setIsGeneratingAi] = useState(false);
   const [aiKit, setAiKit] = useState(lead?.ai_pitch_details || null);
@@ -40,7 +55,46 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
   );
   const [aiError, setAiError] = useState<string | null>(null);
 
+  // Local state for custom WhatsApp message and sender
+  const [customSender, setCustomSender] = useState<string>(senderName);
+  const [customWhatsAppText, setCustomWhatsAppText] = useState<string>(() => {
+    return lead ? generateWhatsAppPitch(lead, senderName) : '';
+  });
+
   if (!lead) return null;
+
+  const cleanPhone = formatWhatsAppNumber(lead.raw.phone);
+  const currentWhatsAppUrl = cleanPhone
+    ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(customWhatsAppText)}`
+    : null;
+
+  // Identify WhatsApp Case for UI tag
+  const getWhatsAppCaseInfo = () => {
+    if (lead.tags.includes('NO_WEBSITE')) {
+      return {
+        id: 'CASO_1',
+        title: 'Caso 1: Nessun Sito Web',
+        desc: 'Richiesta orientata al menù/catalogo e alla creazione del sito vetrina per contatti diretti.',
+        badgeColor: 'text-amber-400 bg-amber-950/80 border-amber-800/80',
+      };
+    }
+    if (lead.tags.includes('WEBSITE_CRITICAL')) {
+      return {
+        id: 'CASO_2',
+        title: 'Caso 2: Sito Lento o Non Ottimizzato Smartphone',
+        desc: 'Offerta di un rapido report gratuito con i 3 punti tecnici critici da correggere.',
+        badgeColor: 'text-orange-400 bg-orange-950/80 border-orange-800/80',
+      };
+    }
+    return {
+      id: 'CASO_3',
+      title: 'Caso 3: Profilo GBP Trascurato / Poche Recensioni',
+      desc: 'Proposta di una guida mirata su come aumentare le recensioni a costo zero per superare i concorrenti.',
+      badgeColor: 'text-indigo-400 bg-indigo-950/80 border-indigo-800/80',
+    };
+  };
+
+  const waCase = getWhatsAppCaseInfo();
 
   // The clean output JSON format requested by the user prompt
   const cleanOutputJson = {
@@ -139,6 +193,17 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            {onEditLead && (
+              <button
+                onClick={() => onEditLead(lead)}
+                className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg transition-colors"
+                title="Modifica o correggi URL sito web, telefono o recensioni"
+              >
+                <Edit3 className="w-3.5 h-3.5 text-indigo-400" />
+                <span>Modifica Scheda</span>
+              </button>
+            )}
+
             <button
               onClick={() => copyToClipboard(JSON.stringify(cleanOutputJson, null, 2), 'clean-json')}
               className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg transition-colors"
@@ -167,10 +232,10 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
         </div>
 
         {/* Navigation Tabs */}
-        <div className="flex items-center gap-1 px-5 border-b border-slate-800 bg-slate-900">
+        <div className="flex items-center gap-1 px-5 border-b border-slate-800 bg-slate-900 overflow-x-auto">
           <button
             onClick={() => setActiveTab('dossier')}
-            className={`py-3 px-4 text-xs font-medium border-b-2 transition-colors flex items-center gap-2 ${
+            className={`py-3 px-4 text-xs font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
               activeTab === 'dossier'
                 ? 'border-indigo-500 text-indigo-400 font-semibold'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -181,8 +246,25 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
           </button>
 
           <button
+            onClick={() => setActiveTab('whatsapp')}
+            className={`py-3 px-4 text-xs font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
+              activeTab === 'whatsapp'
+                ? 'border-emerald-500 text-emerald-400 font-semibold'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <MessageCircle className="w-4 h-4 text-emerald-400" />
+            <span>Outreach WhatsApp (wa.me)</span>
+            {cleanPhone ? (
+              <span className="w-2 h-2 rounded-full bg-emerald-400" />
+            ) : (
+              <span className="text-[10px] text-slate-500">(No num.)</span>
+            )}
+          </button>
+
+          <button
             onClick={() => setActiveTab('ai-kit')}
-            className={`py-3 px-4 text-xs font-medium border-b-2 transition-colors flex items-center gap-2 ${
+            className={`py-3 px-4 text-xs font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
               activeTab === 'ai-kit'
                 ? 'border-indigo-500 text-indigo-400 font-semibold'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -195,7 +277,7 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
 
           <button
             onClick={() => setActiveTab('json')}
-            className={`py-3 px-4 text-xs font-medium border-b-2 transition-colors flex items-center gap-2 ${
+            className={`py-3 px-4 text-xs font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
               activeTab === 'json'
                 ? 'border-indigo-500 text-indigo-400 font-semibold'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -281,7 +363,19 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
                   <div>
-                    <span className="text-slate-500 block mb-0.5">Sito Web</span>
+                    <div className="flex items-center justify-between mb-0.5">
+                      <span className="text-slate-500">Sito Web</span>
+                      {onEditLead && (
+                        <button
+                          type="button"
+                          onClick={() => onEditLead(lead)}
+                          className="text-[10px] text-indigo-400 hover:underline flex items-center gap-0.5"
+                        >
+                          <Edit3 className="w-2.5 h-2.5" />
+                          <span>Modifica</span>
+                        </button>
+                      )}
+                    </div>
                     {lead.raw.website ? (
                       <a
                         href={lead.raw.website}
@@ -360,14 +454,207 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
                     <span>Verifica su Maps</span>
                   </a>
 
+                  {cleanPhone && (
+                    <a
+                      href={currentWhatsAppUrl!}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white transition-colors"
+                      title="Apri chat wa.me con messaggio calibrato"
+                    >
+                      <MessageCircle className="w-3.5 h-3.5" />
+                      <span>WhatsApp (wa.me)</span>
+                    </a>
+                  )}
+
                   {lead.raw.phone && (
                     <a
                       href={`tel:${lead.raw.phone}`}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white transition-colors"
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white transition-colors"
                     >
                       <Phone className="w-3.5 h-3.5" />
-                      <span>Chiama Ora</span>
+                      <span>Chiama</span>
                     </a>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB: Outreach WhatsApp Diretto (wa.me) */}
+          {activeTab === 'whatsapp' && (
+            <div className="space-y-6">
+              {/* Header card with phone status & case detection */}
+              <div className="p-4 bg-slate-950/70 border border-slate-800 rounded-xl space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 rounded-lg bg-emerald-600/20 text-emerald-400">
+                      <MessageCircle className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                        Outreach Diretto WhatsApp (wa.me)
+                        <span className={`text-[11px] px-2 py-0.5 rounded border font-mono font-medium ${waCase.badgeColor}`}>
+                          {waCase.title}
+                        </span>
+                      </h3>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        {waCase.desc}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Clean phone indicator */}
+                  <div className="text-right">
+                    <span className="text-[11px] text-slate-500 block">Numero wa.me Normalizzato:</span>
+                    {cleanPhone ? (
+                      <span className="text-xs font-mono font-semibold text-emerald-400">
+                        +{cleanPhone}
+                      </span>
+                    ) : (
+                      <span className="text-xs font-mono font-semibold text-rose-400">
+                        Numero mancante o non valido
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-slate-800/80 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <span className="text-slate-500 block mb-0.5">Numero Originale Google Maps:</span>
+                    <span className="text-slate-200 font-mono">
+                      {lead.raw.phone || 'Non presente nella scheda'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block mb-0.5">Stato Connessione:</span>
+                    <span className="text-slate-300">
+                      Zero costi API · Apertura diretta tramite WhatsApp Web / App mobile
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sender Name Configurator */}
+              <div className="p-3.5 bg-slate-900 border border-slate-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                <div className="flex items-center gap-2">
+                  <UserCheck className="w-4 h-4 text-indigo-400 shrink-0" />
+                  <span className="text-slate-300">
+                    Firma messaggio (sostituisce <code className="text-indigo-300 font-mono">[Tuo Nome]</code>):
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={customSender}
+                    onChange={(e) => {
+                      const newSender = e.target.value;
+                      setCustomSender(newSender);
+                      if (onUpdateSenderName) onUpdateSenderName(newSender);
+                      // Update message template
+                      setCustomWhatsAppText(generateWhatsAppPitch(lead, newSender));
+                    }}
+                    placeholder="es. Gabriele di Studio Web"
+                    className="px-3 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-hidden focus:border-indigo-500 w-56 font-medium"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCustomWhatsAppText(generateWhatsAppPitch(lead, customSender));
+                    }}
+                    className="px-2.5 py-1.5 text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700 transition-colors"
+                    title="Ripristina testo predefinito per questo caso"
+                  >
+                    Reset
+                  </button>
+                </div>
+              </div>
+
+              {/* Message Editor */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-semibold text-slate-300 flex items-center gap-1.5">
+                    <Send className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Testo Messaggio WhatsApp Calibrato (Modificabile in tempo reale):</span>
+                  </span>
+                  <button
+                    onClick={() => copyToClipboard(customWhatsAppText, 'wa-text')}
+                    className="text-xs text-slate-400 hover:text-slate-200 flex items-center gap-1"
+                  >
+                    {copiedKey === 'wa-text' ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Copiato negli appunti!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>Copia Messaggio</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                <textarea
+                  rows={4}
+                  value={customWhatsAppText}
+                  onChange={(e) => setCustomWhatsAppText(e.target.value)}
+                  className="w-full p-3.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 text-xs leading-relaxed focus:outline-hidden focus:border-emerald-500 font-sans resize-none"
+                />
+              </div>
+
+              {/* Generated wa.me Link Preview & Actions */}
+              <div className="p-4 bg-emerald-950/20 border border-emerald-500/30 rounded-xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-emerald-400 uppercase tracking-wider">
+                    Link Finale Generato (wa.me)
+                  </span>
+                  {currentWhatsAppUrl && (
+                    <button
+                      onClick={() => copyToClipboard(currentWhatsAppUrl, 'wa-url')}
+                      className="text-xs text-emerald-400 hover:text-emerald-300 flex items-center gap-1"
+                    >
+                      {copiedKey === 'wa-url' ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-emerald-300" />
+                          <span>Link Copiato!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>Copia Link wa.me</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+
+                <div className="p-2.5 bg-slate-950 rounded-lg border border-slate-800 text-xs font-mono text-slate-400 break-all select-all">
+                  {currentWhatsAppUrl || 'Impossibile generare il link: numero di telefono non presente o non valido.'}
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2">
+                  <div className="text-xs text-slate-400">
+                    Cliccando sul pulsante si aprirà direttamente WhatsApp Web su desktop o l'app WhatsApp su smartphone.
+                  </div>
+
+                  {cleanPhone ? (
+                    <a
+                      href={currentWhatsAppUrl!}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-5 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-colors flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/30 shrink-0"
+                    >
+                      <MessageCircle className="w-4 h-4 fill-white" />
+                      <span>Invia su WhatsApp (wa.me)</span>
+                    </a>
+                  ) : (
+                    <button
+                      disabled
+                      className="px-5 py-2.5 rounded-lg bg-slate-800 text-slate-500 font-semibold text-xs cursor-not-allowed flex items-center justify-center gap-2 shrink-0"
+                    >
+                      <span>Numero Non Disponibile</span>
+                    </button>
                   )}
                 </div>
               </div>

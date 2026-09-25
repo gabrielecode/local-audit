@@ -6,7 +6,8 @@ import {
   PlusCircle, 
   HelpCircle, 
   RefreshCw,
-  Sparkles
+  Sparkles,
+  Search
 } from 'lucide-react';
 import { DatasetPreset, SAMPLE_PRESETS } from '../data/sampleDatasets';
 
@@ -18,6 +19,7 @@ interface HeaderProps {
   onExportCsv: () => void;
   onLoadPreset: (preset: DatasetPreset) => void;
   leadsCount: number;
+  onFocusSearch?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -28,6 +30,7 @@ export const Header: React.FC<HeaderProps> = ({
   onExportCsv,
   onLoadPreset,
   leadsCount,
+  onFocusSearch,
 }) => {
   return (
     <header className="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-30">
@@ -74,6 +77,17 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Zone 3: Primary Actions */}
         <div className="flex items-center gap-2 shrink-0">
+          {onFocusSearch && (
+            <button
+              onClick={onFocusSearch}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 transition-colors"
+              title="Cerca lead live con Google Places API"
+            >
+              <Search className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Cerca Places</span>
+            </button>
+          )}
+
           <button
             onClick={onOpenSingleAudit}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors"
