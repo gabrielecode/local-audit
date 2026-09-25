@@ -11,6 +11,8 @@ export interface RawBusinessInput {
   unclaimed_profile?: boolean | null;
   pagespeed_mobile_score?: number | null;
   ssl_active?: boolean | null;
+  google_maps_url?: string | null;
+  googleMapsUri?: string | null;
 }
 
 export default async function handler(req: Request, res: Response) {
@@ -24,9 +26,9 @@ export default async function handler(req: Request, res: Response) {
 
   res.setHeader('Access-Control-Allow-Origin', '*');
 
-  const query = (req.query?.query || req.body?.query || '') as string;
-  const category = (req.query?.category || req.body?.category || '') as string;
-  const city = (req.query?.city || req.body?.city || '') as string;
+  const rawQuery = ((req.query?.query || req.body?.query || '') as string).trim();
+  const rawCategory = ((req.query?.category || req.body?.category || '') as string).trim();
+  const rawCity = ((req.query?.city || req.body?.city || '') as string).trim();
   const apiKey = (process.env.GOOGLE_PLACES_API_KEY || '').trim();
 
   if (!apiKey || apiKey === 'la_tua_google_places_api_key') {
@@ -36,15 +38,18 @@ export default async function handler(req: Request, res: Response) {
     });
   }
 
-  let textQuery = query.trim();
-  if (!textQuery) {
-    if (category.trim() && city.trim()) {
-      textQuery = `${category.trim()} a ${city.trim()}`;
-    } else if (category.trim()) {
-      textQuery = category.trim();
-    } else if (city.trim()) {
-      textQuery = city.trim();
-    }
+  // 1. Flessibilità della query:
+  // - Se sono forniti sia categoria che città, componi la query in modo naturale: `${category} ${city}`
+  // - Se l'utente inserisce solo il nome o una query libera, usa direttamente quella stringa
+  let textQuery = '';
+  if (rawCategory && rawCity) {
+    textQuery = `${rawCategory} ${rawCity}`;
+  } else if (rawQuery) {
+    textQuery = rawQuery;
+  } else if (rawCategory) {
+    textQuery = rawCategory;
+  } else if (rawCity) {
+    textQuery = rawCity;
   }
 
   if (!textQuery) {
@@ -60,7 +65,7 @@ export default async function handler(req: Request, res: Response) {
         'Content-Type': 'application/json',
         'X-Goog-Api-Key': apiKey,
         'X-Goog-FieldMask':
-          'places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.internationalPhoneNumber,places.websiteUri,places.rating,places.userRatingCount,places.regularOpeningHours,places.primaryTypeDisplayName,places.types,places.addressComponents',
+          'places.id,places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.internationalPhoneNumber,places.websiteUri,places.rating,places.userRatingCount,places.googleMapsUri,places.primaryTypeDisplayName,places.types,places.addressComponents',
       },
       body: JSON.stringify({
         textQuery,
@@ -77,17 +82,38 @@ export default async function handler(req: Request, res: Response) {
     }
 
     const places: RawBusinessInput[] = (data.places || []).map((p: any) => {
-      const websiteUri = p.websiteUri ? String(p.websiteUri).trim() : null;
+      // Log di console del server per verificare cosa restituisce Google in tempo reale
+      console.log('Place trovato:', p.displayName?.text, 'Sito:', p.websiteUri);
+
+      // Normalizzazione campo website: se websiteUri è presente, mantienilo con protocollo (https://...). Se vuoto, lascia null.
+      let normalizedWebsite: string | null = null;
+      if (p.websiteUri && typeof p.websiteUri === 'string') {
+        const trimmedWeb = p.websiteUri.trim();
+        if (
+          trimmedWeb &&
+          trimmedWeb.toLowerCase() !== 'null' &&
+          trimmedWeb.toLowerCase() !== 'undefined'
+        ) {
+          if (/^https?:\/\//i.test(trimmedWeb)) {
+            normalizedWebsite = trimmedWeb;
+          } else {
+            normalizedWebsite = `https://${trimmedWeb}`;
+          }
+        }
+      }
+
+      // Link diretto scheda Google Maps
+      const googleMapsUri: string | null = p.googleMapsUri ? String(p.googleMapsUri).trim() : null;
 
       // Extract accurate category
       const resolvedCategory =
         p.primaryTypeDisplayName?.text ||
         (Array.isArray(p.types) && p.types.length > 0
           ? p.types[0].replace(/_/g, ' ')
-          : category.trim() || 'Attività commerciale');
+          : rawCategory || 'Attività commerciale');
 
       // Extract accurate city / locality from address components or formattedAddress
-      let resolvedCity = city.trim();
+      let resolvedCity = rawCity;
       if (Array.isArray(p.addressComponents)) {
         const localityComp = p.addressComponents.find((c: any) =>
           c.types?.includes('locality') ||
@@ -111,19 +137,21 @@ export default async function handler(req: Request, res: Response) {
       const preferredPhone = p.internationalPhoneNumber || p.nationalPhoneNumber || null;
 
       // Real SSL estimation: if URI explicitly has https, true. If http or no protocol, mark null (pending live verification), NEVER false
-      const initialSslActive = websiteUri ? (websiteUri.startsWith('https://') ? true : null) : null;
+      const initialSslActive = normalizedWebsite ? (normalizedWebsite.startsWith('https://') ? true : null) : null;
 
       return {
         business_name: p.displayName?.text || 'Attività senza nome',
         category: resolvedCategory,
         city: resolvedCity || 'Zona locale',
         phone: preferredPhone,
-        website: websiteUri,
+        website: normalizedWebsite,
         google_rating: typeof p.rating === 'number' ? p.rating : 0,
         reviews_count: typeof p.userRatingCount === 'number' ? p.userRatingCount : 0,
         unclaimed_profile: false,
         pagespeed_mobile_score: null, // Verificato accuratamente su richiesta o asincronamente
         ssl_active: initialSslActive,
+        google_maps_url: googleMapsUri,
+        googleMapsUri: googleMapsUri,
       };
     });
 

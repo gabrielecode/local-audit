@@ -42,6 +42,8 @@ export const LeadEditModal: React.FC<LeadEditModalProps> = ({
         unclaimed_profile: Boolean(lead.raw.unclaimed_profile),
         pagespeed_mobile_score: lead.raw.pagespeed_mobile_score ?? 45,
         ssl_active: lead.raw.ssl_active !== false,
+        google_maps_url: lead.raw.google_maps_url || null,
+        googleMapsUri: lead.raw.googleMapsUri || null,
       });
     }
   }, [lead]);

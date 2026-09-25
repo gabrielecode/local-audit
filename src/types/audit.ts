@@ -9,6 +9,8 @@ export interface RawBusinessInput {
   unclaimed_profile?: boolean | null;
   pagespeed_mobile_score?: number | null;
   ssl_active?: boolean | null;
+  google_maps_url?: string | null;
+  googleMapsUri?: string | null;
 }
 
 export type LeadPriority = 'ALTA' | 'MEDIA' | 'BASSA';

@@ -19,7 +19,8 @@ import {
   Gauge,
   Loader2,
   RotateCw,
-  Zap
+  Zap,
+  MapPin
 } from 'lucide-react';
 import { buildWhatsAppUrl, generateWhatsAppPitch, formatWhatsAppNumber } from '../utils/whatsappHelper';
 
@@ -314,25 +315,40 @@ export const LeadTable: React.FC<LeadTableProps> = ({
                     {/* Presenza Web & PageSpeed Mobile */}
                     <td className="py-3 px-4">
                       {isNoWeb ? (
-                        <div>
+                        <div className="space-y-1">
                           <div className="text-amber-400 font-medium flex items-center gap-1">
                             <Globe className="w-3.5 h-3.5 text-amber-400" />
                             <span>Nessun Sito Web</span>
                           </div>
-                          <span className="text-[11px] text-amber-400/80 font-mono">
-                            Score: 0 · NO_WEBSITE
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] text-amber-400/80 font-mono">
+                              Score: 0 · NO_WEBSITE
+                            </span>
+                            {(lead.raw.googleMapsUri || lead.raw.google_maps_url) && (
+                              <a
+                                href={(lead.raw.googleMapsUri || lead.raw.google_maps_url)!}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-slate-800/90 hover:bg-slate-700 text-rose-400 hover:text-rose-300 border border-slate-700/60 transition-colors text-[10px] font-medium"
+                                title="Verifica scheda Google Maps con 1 click"
+                              >
+                                <MapPin className="w-3 h-3 text-rose-400 shrink-0" />
+                                <span>Maps</span>
+                              </a>
+                            )}
+                          </div>
                         </div>
                       ) : (
                         <div className="space-y-1">
-                          {/* Website Link and SSL */}
-                          <div className="flex items-center gap-1.5">
+                          {/* Website Link, SSL and Google Maps 1-Click Link */}
+                          <div className="flex items-center gap-1.5 flex-wrap">
                             <a
                               href={lead.raw.website!}
                               target="_blank"
                               rel="noreferrer"
                               onClick={(e) => e.stopPropagation()}
-                              className="text-xs text-indigo-400 hover:underline truncate max-w-[150px] inline-flex items-center gap-1"
+                              className="text-xs text-indigo-400 hover:underline truncate max-w-[140px] inline-flex items-center gap-1 font-medium"
                               title={lead.raw.website!}
                             >
                               <span className="truncate">
@@ -340,6 +356,22 @@ export const LeadTable: React.FC<LeadTableProps> = ({
                               </span>
                               <ExternalLink className="w-2.5 h-2.5 shrink-0 opacity-70" />
                             </a>
+
+                            {/* Direct Google Maps 1-click check */}
+                            {(lead.raw.googleMapsUri || lead.raw.google_maps_url) && (
+                              <a
+                                href={(lead.raw.googleMapsUri || lead.raw.google_maps_url)!}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-slate-800/80 hover:bg-slate-700 text-rose-400 hover:text-rose-300 border border-slate-700/60 transition-colors"
+                                title="Apri scheda ufficiale Google Maps con 1 click"
+                              >
+                                <MapPin className="w-3 h-3 text-rose-400 shrink-0" />
+                                <span className="text-[10px] font-medium">Maps</span>
+                              </a>
+                            )}
+
                             {lead.raw.ssl_active === false && (
                               <span className="text-[10px] text-rose-400 bg-rose-950/60 px-1 rounded font-mono">
                                 No SSL
@@ -410,14 +442,28 @@ export const LeadTable: React.FC<LeadTableProps> = ({
 
                     {/* Profilo Google (GBP) */}
                     <td className="py-3 px-4">
-                      <div className="flex items-center gap-1.5 text-slate-200">
-                        <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-                        <span className="font-mono font-medium tabular-nums">
-                          {lead.raw.google_rating?.toFixed(1) || '0.0'}
-                        </span>
-                        <span className="text-slate-500">
-                          ({lead.raw.reviews_count || 0} rec.)
-                        </span>
+                      <div className="flex items-center justify-between gap-1.5">
+                        <div className="flex items-center gap-1.5 text-slate-200">
+                          <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+                          <span className="font-mono font-medium tabular-nums">
+                            {lead.raw.google_rating?.toFixed(1) || '0.0'}
+                          </span>
+                          <span className="text-slate-500">
+                            ({lead.raw.reviews_count || 0} rec.)
+                          </span>
+                        </div>
+                        {(lead.raw.googleMapsUri || lead.raw.google_maps_url) && (
+                          <a
+                            href={(lead.raw.googleMapsUri || lead.raw.google_maps_url)!}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="p-1 rounded bg-slate-800/80 hover:bg-slate-700 text-rose-400 hover:text-rose-300 border border-slate-700/60 transition-colors shrink-0"
+                            title="Apri scheda ufficiale Google Maps"
+                          >
+                            <MapPin className="w-3 h-3 text-rose-400" />
+                          </a>
+                        )}
                       </div>
                       {isUnclaimed ? (
                         <div className="text-xs text-rose-400 font-medium flex items-center gap-1 mt-0.5">
@@ -441,6 +487,20 @@ export const LeadTable: React.FC<LeadTableProps> = ({
                     {/* Azione Rapida */}
                     <td className="py-3 px-4 text-right">
                       <div className="flex items-center justify-end gap-1.5">
+                        {/* Direct Google Maps 1-click icon in actions */}
+                        {(lead.raw.googleMapsUri || lead.raw.google_maps_url) && (
+                          <a
+                            href={(lead.raw.googleMapsUri || lead.raw.google_maps_url)!}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="p-1.5 rounded-md hover:bg-slate-800 text-slate-400 hover:text-rose-400 border border-slate-800 hover:border-slate-700 transition-colors"
+                            title="Apri scheda Google Maps con 1 click"
+                          >
+                            <MapPin className="w-3.5 h-3.5 text-rose-400" />
+                          </a>
+                        )}
+
                         {/* WhatsApp Direct wa.me Link Button */}
                         {lead.raw.phone && formatWhatsAppNumber(lead.raw.phone) && (
                           <a
