@@ -169,7 +169,15 @@ export function auditSingleBusiness(input: RawBusinessInput): AuditResult {
 
   // Se nessun problema rilevato, indichiamo profilo sano
   if (main_problems.length === 0) {
-    main_problems.push('Presenza digitale in buono stato generale; possibili margini di crescita su campagne locali sponsorizzate.');
+    if (reviewsCount >= 30 && rating >= 4.3) {
+      main_problems.push(
+        `Presenza digitale solida e ben curata: ottima reputazione su Google (${rating.toFixed(1)}/5 con ${reviewsCount} recensioni) e sito web attivo.`
+      );
+    } else {
+      main_problems.push(
+        'Presenza digitale in buono stato generale; possibili margini di crescita su campagne locali sponsorizzate.'
+      );
+    }
     suggested_services.push('Campagne Google Ads Local o potenziamento SEO locale continuativo');
   }
 
@@ -195,7 +203,7 @@ export function auditSingleBusiness(input: RawBusinessInput): AuditResult {
   } else if (tags.includes('GBP_POOR_RATING')) {
     sales_pitch_hook = `Buongiorno ${businessName}, abbiamo notato che la media delle vostre recensioni a ${city} è di ${rating.toFixed(1)}, un valore che frena molti nuovi clienti dal chiamarvi. Abbiamo una strategia collaudata per valorizzare le esperienze positive e ripristinare un punteggio rassicurante.`;
   } else {
-    sales_pitch_hook = `Buongiorno ${businessName}, complimenti per l'ottima reputazione su ${city}: avendo già una solida base digitale, possiamo aiutarvi a scalare la leadership di zona attraverso campagne mirate su Google Local.`;
+    sales_pitch_hook = `Buongiorno ${businessName}, complimenti per la forte reputazione a ${city} (${rating > 0 ? rating.toFixed(1) : '5.0'} con oltre ${reviewsCount} recensioni): avendo già un'ottima base digitale, possiamo aiutarvi a consolidare la leadership di zona attraverso campagne mirate su Google Local.`;
   }
 
   return {

@@ -21,11 +21,11 @@ interface PlacesSearchBarProps {
 }
 
 const POPULAR_SUGGESTIONS = [
+  { category: 'Grotto Morchino', city: 'Lugano' },
+  { category: 'Ristoranti', city: 'Lugano' },
   { category: 'Ristoranti', city: 'Bologna' },
   { category: 'Dentisti', city: 'Milano' },
   { category: 'Idraulici', city: 'Roma' },
-  { category: 'Palestre', city: 'Torino' },
-  { category: 'Centri Estetici', city: 'Firenze' },
 ];
 
 export const PlacesSearchBar: React.FC<PlacesSearchBarProps> = ({
@@ -34,8 +34,8 @@ export const PlacesSearchBar: React.FC<PlacesSearchBarProps> = ({
   setIsLoading,
   onFallbackLoadSample,
 }) => {
-  const [category, setCategory] = useState('Ristoranti');
-  const [city, setCity] = useState('Bologna');
+  const [category, setCategory] = useState('Grotto Morchino');
+  const [city, setCity] = useState('Lugano');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [missingKeyError, setMissingKeyError] = useState(false);
   const [successInfo, setSuccessInfo] = useState<string | null>(null);
@@ -46,8 +46,8 @@ export const PlacesSearchBar: React.FC<PlacesSearchBarProps> = ({
     const trimmedCat = category.trim();
     const trimmedCity = city.trim();
 
-    if (!trimmedCat || !trimmedCity) {
-      setErrorMessage('Inserisci sia la categoria che la città per avviare la ricerca.');
+    if (!trimmedCat && !trimmedCity) {
+      setErrorMessage('Inserisci una categoria, un nome attività o una località per avviare la ricerca.');
       return;
     }
 
@@ -57,7 +57,18 @@ export const PlacesSearchBar: React.FC<PlacesSearchBarProps> = ({
     setSuccessInfo(null);
 
     try {
-      const url = `/api/search?category=${encodeURIComponent(trimmedCat)}&city=${encodeURIComponent(trimmedCity)}`;
+      const params = new URLSearchParams();
+      if (trimmedCat && trimmedCity) {
+        params.set('category', trimmedCat);
+        params.set('city', trimmedCity);
+        params.set('query', `${trimmedCat} ${trimmedCity}`);
+      } else if (trimmedCat) {
+        params.set('query', trimmedCat);
+      } else {
+        params.set('query', trimmedCity);
+      }
+
+      const url = `/api/search?${params.toString()}`;
       const res = await fetch(url);
       const data = await res.json();
 
@@ -77,10 +88,11 @@ export const PlacesSearchBar: React.FC<PlacesSearchBarProps> = ({
         : [];
 
       if (placesList.length === 0) {
-        setErrorMessage(`Nessuna attività trovata per "${trimmedCat}" a "${trimmedCity}". Prova con un'altra categoria o città.`);
+        setErrorMessage(`Nessuna attività trovata per "${trimmedCat || trimmedCity}". Prova a modificare la ricerca.`);
       } else {
-        setSuccessInfo(`Trovate ${placesList.length} attività per "${trimmedCat}" a ${trimmedCity}! Analisi completata.`);
-        onSearchSuccess(placesList, trimmedCat, trimmedCity);
+        const displayLabel = trimmedCat && trimmedCity ? `${trimmedCat} a ${trimmedCity}` : trimmedCat || trimmedCity;
+        setSuccessInfo(`Trovate ${placesList.length} attività per "${displayLabel}"! Dati verificati.`);
+        onSearchSuccess(placesList, trimmedCat || 'Attività', trimmedCity || 'Zona');
       }
     } catch (err: any) {
       console.error('Search error:', err);

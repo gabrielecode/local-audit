@@ -458,6 +458,25 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
                   </div>
 
                   <div>
+                    <span className="text-slate-500 block mb-0.5">Certificato SSL</span>
+                    <span
+                      className={`font-medium ${
+                        lead.raw.ssl_active === true
+                          ? 'text-emerald-400'
+                          : lead.raw.ssl_active === false
+                          ? 'text-rose-400'
+                          : 'text-slate-400'
+                      }`}
+                    >
+                      {lead.raw.ssl_active === true
+                        ? 'Attivo (HTTPS)'
+                        : lead.raw.ssl_active === false
+                        ? 'Assente / Non sicuro'
+                        : 'Da verificare'}
+                    </span>
+                  </div>
+
+                  <div>
                     <span className="text-slate-500 block mb-0.5">Scheda Rivendicata</span>
                     <span
                       className={`font-medium ${

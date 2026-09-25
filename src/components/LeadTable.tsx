@@ -345,6 +345,11 @@ export const LeadTable: React.FC<LeadTableProps> = ({
                                 No SSL
                               </span>
                             )}
+                            {lead.raw.ssl_active === true && (
+                              <span className="text-[10px] text-emerald-400 bg-emerald-950/60 px-1 rounded font-mono">
+                                HTTPS
+                              </span>
+                            )}
                           </div>
 
                           {/* PageSpeed Status or Test Button */}

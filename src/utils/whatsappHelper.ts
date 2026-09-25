@@ -14,30 +14,56 @@ export function formatWhatsAppNumber(
 ): string | null {
   if (!phone || typeof phone !== 'string') return null;
 
-  // 1. Rimuovi tutti i caratteri non numerici tranne eventuali cifre
-  let cleaned = phone.replace(/[^\d]/g, '');
+  const rawTrimmed = phone.trim();
 
-  if (!cleaned || cleaned.length < 6) return null;
+  // Check if international prefix (+) is explicitly provided
+  const hasPlusPrefix = rawTrimmed.startsWith('+');
+  const hasDoubleZeroPrefix = rawTrimmed.startsWith('00');
 
-  // 2. Se inizia con 00, rimuovi i primi due zeri
-  if (cleaned.startsWith('00')) {
-    cleaned = cleaned.slice(2);
+  // Remove all non-digit characters
+  let digits = rawTrimmed.replace(/[^\d]/g, '');
+
+  if (!digits || digits.length < 6) return null;
+
+  // If starts with 00, remove the first two zeros
+  if (hasDoubleZeroPrefix || digits.startsWith('00')) {
+    digits = digits.slice(2);
+    // Already has country code
+    return digits.length >= 8 && digits.length <= 16 ? digits : null;
   }
 
-  // 3. Se non inizia con il prefisso internazionale di default (es. 39 per Italia)
-  // Nota: per l'Italia i numeri nazionali senza prefisso iniziano per 0 (fissi) o 3 (cellulari).
-  // Se già inizia per 39 e la lunghezza complessiva è congrua (almeno 11 cifre, es. 39 340 1234567 o 39 02 1234567), va bene così.
-  // Se non inizia per 39, aggiungi 39.
-  if (!cleaned.startsWith(defaultCountryCode)) {
-    cleaned = `${defaultCountryCode}${cleaned}`;
+  // If originally had +, the country code is already included
+  if (hasPlusPrefix) {
+    return digits.length >= 8 && digits.length <= 16 ? digits : null;
   }
 
-  // 4. Validazione: un numero italiano con prefisso 39 è tipicamente tra 11 e 13 cifre
-  if (cleaned.length < 10 || cleaned.length > 15) {
+  // Detect common Swiss numbers (e.g. 091, 076, 077, 078, 079, 044, 022)
+  if (/^0(91|76|77|78|79|44|22|21|31|61)\d{6,8}$/.test(digits)) {
+    // Strip leading 0 and prepend Swiss country code 41
+    return `41${digits.slice(1)}`;
+  }
+
+  // If already starts with 39 (Italy) and is standard length
+  if (digits.startsWith('39') && digits.length >= 11 && digits.length <= 13) {
+    return digits;
+  }
+
+  // If starts with 41 (Switzerland) and is standard length
+  if (digits.startsWith('41') && digits.length >= 10 && digits.length <= 12) {
+    return digits;
+  }
+
+  // Otherwise, default fallback: if it doesn't have a recognized country prefix, prepend defaultCountryCode
+  if (!digits.startsWith(defaultCountryCode)) {
+    // For national numbers starting with 0 or 3
+    digits = `${defaultCountryCode}${digits}`;
+  }
+
+  if (digits.length < 10 || digits.length > 16) {
     return null;
   }
 
-  return cleaned;
+  return digits;
 }
 
 /**

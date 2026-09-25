@@ -103,11 +103,13 @@ export default function App() {
     try {
       const res = await fetch(`/api/pagespeed?url=${encodeURIComponent(website)}`);
       const data = await res.json();
-      const score = typeof data.score === 'number' ? data.score : 45;
+      const score = typeof data.score === 'number' ? data.score : null;
+      const verifiedSsl = typeof data.ssl_active === 'boolean' ? data.ssl_active : lead.raw.ssl_active;
 
       const updatedRaw: RawBusinessInput = {
         ...lead.raw,
         pagespeed_mobile_score: score,
+        ssl_active: verifiedSsl,
       };
 
       const reAudited = auditSingleBusiness(updatedRaw);
